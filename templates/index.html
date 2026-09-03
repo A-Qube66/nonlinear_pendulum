@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#08111f" />
+    <meta name="description" content="基于 SciPy solve_ivp 的大角度非线性单摆交互实验室" />
+    <title>单摆动力学实验室</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true"><span></span></div>
+          <div>
+            <p class="eyebrow">DYNAMICS / 01</p>
+            <h1>单摆动力学实验室</h1>
+          </div>
+        </div>
+        <div class="topbar-meta">
+          <span class="solver-badge"><i></i> SCIPY · SOLVE_IVP</span>
+          <span class="timecode" id="headerTime">t = 0.00 s</span>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="control-panel panel">
+          <div class="panel-heading">
+            <div>
+              <p class="section-index">01</p>
+              <h2>实验参数</h2>
+            </div>
+            <span class="live-dot" title="数值模型已连接"></span>
+          </div>
+
+          <div class="control-stack">
+            <label class="range-control" for="angleSlider">
+              <span class="control-label"><b>初始摆角</b><output id="angleValue">28°</output></span>
+              <input id="angleSlider" type="range" min="1" max="80" step="1" value="28" />
+              <span class="range-ends"><small>1°</small><small>80°</small></span>
+            </label>
+
+            <label class="range-control" for="lengthSlider">
+              <span class="control-label"><b>摆长</b><output id="lengthValue">1.65 m</output></span>
+              <input id="lengthSlider" type="range" min="0.3" max="3" step="0.05" value="1.65" />
+              <span class="range-ends"><small>0.3 m</small><small>3.0 m</small></span>
+            </label>
+
+            <label class="range-control" for="gravitySlider">
+              <span class="control-label"><b>重力加速度</b><output id="gravityValue">9.81 m/s²</output></span>
+              <input id="gravitySlider" type="range" min="1" max="20" step="0.01" value="9.81" />
+              <span class="range-ends"><small>月球</small><small>强引力</small></span>
+            </label>
+
+            <button class="damping-toggle" id="dampingToggle" type="button" role="switch" aria-checked="false">
+              <span>
+                <small>空气阻尼</small>
+                <b id="dampingLabel">已关闭</b>
+              </span>
+              <span class="switch-track"><span></span></span>
+            </button>
+          </div>
+
+          <div class="formula-card" id="formulaCard">
+            <div class="formula-title"><span>当前运动方程</span><i id="formulaMode">无阻尼</i></div>
+            <div class="formula" id="mainFormula">θ̈ + <span class="fraction"><em>g</em><em>L</em></span> sin θ = 0</div>
+            <div class="formula-numeric" id="numericFormula">θ̈ + 5.95 sin θ = 0</div>
+          </div>
+
+          <div class="preset-row" aria-label="物理现象预设">
+            <button type="button" data-preset="small">小角度</button>
+            <button type="button" data-preset="large">大角度</button>
+            <button type="button" data-preset="damped">能量耗散</button>
+          </div>
+
+          <div class="action-row">
+            <button class="primary-action" id="playButton" type="button">
+              <span class="play-icon" aria-hidden="true"></span><span id="playLabel">暂停</span>
+            </button>
+            <button class="icon-action" id="resetButton" type="button" aria-label="重置仿真" title="重置仿真">↺</button>
+          </div>
+          <p class="keyboard-hint"><kbd>Space</kbd> 暂停 / 播放　<kbd>R</kbd> 重置</p>
+        </aside>
+
+        <section class="experiment-column">
+          <article class="stage-card panel">
+            <div class="stage-header">
+              <div>
+                <p class="section-index">02</p>
+                <h2>运动观测窗</h2>
+              </div>
+              <div class="stage-legend">
+                <span><i class="legend-dot gravity"></i>重力 mg</span>
+                <span><i class="legend-dot tension"></i>张力 T</span>
+                <span><i class="legend-line trail"></i>运动残影</span>
+              </div>
+            </div>
+            <div class="stage-wrap">
+              <canvas id="pendulumCanvas" aria-label="单摆运动、残影、受力矢量和水平投影动画"></canvas>
+              <div class="angle-readout"><span>θ</span><b id="angleReadout">+28.00°</b></div>
+              <div class="stage-status"><i></i><span id="motionStatus">从正向转折点释放</span></div>
+            </div>
+            <div class="transport">
+              <span id="elapsedTime">00:00.00</span>
+              <div class="timeline" id="timeline" role="slider" aria-label="仿真进度" aria-valuemin="0" aria-valuemax="30" aria-valuenow="0">
+                <span id="timelineFill"></span><i id="timelineHandle"></i>
+              </div>
+              <span>00:30.00</span>
+              <select id="speedSelect" aria-label="播放速度">
+                <option value="0.5">0.5×</option>
+                <option value="1" selected>1.0×</option>
+                <option value="1.5">1.5×</option>
+                <option value="2">2.0×</option>
+              </select>
+            </div>
+          </article>
+
+          <section class="metrics-grid">
+            <article class="metric-card">
+              <span>真实振动周期</span><strong id="measuredPeriod">—</strong><small>NUMERICAL PERIOD</small>
+            </article>
+            <article class="metric-card">
+              <span>小角度理论周期</span><strong id="theoryPeriod">—</strong><small>T₀ = 2π√(L/g)</small>
+            </article>
+            <article class="metric-card accent">
+              <span>周期偏差</span><strong id="periodDeviation">—</strong><small id="deviationHint">NONLINEAR SHIFT</small>
+            </article>
+            <article class="metric-card">
+              <span>机械能</span><strong id="energyReadout">—</strong><small id="energyHint">CONSERVED</small>
+            </article>
+          </section>
+        </section>
+
+        <section class="charts-column">
+          <article class="chart-card panel wide">
+            <div class="chart-header">
+              <div><p class="section-index">03</p><h2>角位移响应</h2></div>
+              <div class="chart-key"><span><i class="solid"></i>非线性数值解</span><span><i class="dashed"></i>理想余弦</span></div>
+            </div>
+            <canvas id="displacementChart"></canvas>
+          </article>
+
+          <article class="chart-card panel">
+            <div class="chart-header compact"><div><p class="section-index">04</p><h2>实时相对误差</h2></div><b id="errorReadout">0.00%</b></div>
+            <canvas id="errorChart"></canvas>
+          </article>
+
+          <article class="chart-card panel">
+            <div class="chart-header compact"><div><p class="section-index">05</p><h2>机械能演化</h2></div><span class="energy-key"><i></i>K <i></i>U <i></i>E</span></div>
+            <canvas id="energyChart"></canvas>
+          </article>
+
+          <article class="chart-card panel wide phase-card">
+            <div class="chart-header">
+              <div><p class="section-index">06</p><h2>θ—θ̇ 相空间</h2></div>
+              <p id="phaseCaption">封闭轨道表示能量守恒</p>
+            </div>
+            <canvas id="phaseChart"></canvas>
+          </article>
+        </section>
+      </main>
+
+      <footer>
+        <span>NONLINEAR PENDULUM · RK DOP853</span>
+        <span>角度采用弧度积分 · 数据以 SI 单位计算</span>
+      </footer>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
